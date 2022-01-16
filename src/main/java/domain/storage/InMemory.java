@@ -7,7 +7,7 @@ import java.util.Map;
 public class InMemory {
 
     // key: value -> id: dtuBankAccount
-    private Map<String, DTUPayAccount> dtuPayAccounts = new HashMap<>();
+    private final Map<String, DTUPayAccount> dtuPayAccounts = new HashMap<>();
 
     private static InMemory instance;
 
