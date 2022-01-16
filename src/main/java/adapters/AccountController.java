@@ -2,7 +2,7 @@ package adapters;
 
 import domain.DTUPayAccountBusinessLogic;
 import domain.DuplicateBankAccountException;
-import domain.NoSuchBankAccountException;
+import domain.NoSuchAccountException;
 import domain.model.DTUPayAccount;
 import domain.storage.InMemory;
 import messaging.Event;
@@ -25,6 +25,7 @@ public class AccountController {
         // todo: make handlers for each event Account need to look at
         queue.addHandler("CreateAccount", this::handleCreateAccountRequest);
         queue.addHandler("DeleteAccount", this::handleDeleteAccountRequest);
+        queue.addHandler("BankAccountRequested", this::handleExportBankAccountRequest);
     }
 
     public void handleCreateAccountRequest(Event event) {
@@ -44,13 +45,19 @@ public class AccountController {
         queue.publish(accCreationSucceeded);
     }
 
+    /**
+     * Consumes events of type DeleteAccount
+     *
+     * @author Mohammad
+     * @param event
+     */
     public void handleDeleteAccountRequest(Event event) {
         var account = event.getArgument(0, DTUPayAccount.class);
 
         // Delete account
         try {
             accountLogic.delete(account);
-        } catch (NoSuchBankAccountException e) {
+        } catch (NoSuchAccountException e) {
             // Publish event
             Event accDeleteFailed = new Event("AccountDeletedFailed", new Object[] {e.getMessage()});
             queue.publish(accDeleteFailed);
