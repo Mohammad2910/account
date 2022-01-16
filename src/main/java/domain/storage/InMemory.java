@@ -44,25 +44,18 @@ public class InMemory {
      * Add account to the in memory storage
      *
      * @param account
-     * @return DTUPayAccount
      */
-    public boolean addAccount(DTUPayAccount account) {
+    public void addAccount(DTUPayAccount account) {
        this.dtuPayAccounts.put(account.getId(), account);
-
-       return this.getAccount(account.getId()) != null;
     }
 
     /**
      * Remove account by id
      *
      * @param id
-     * @return True if objects is deleted, false otherwise.
      */
-    public boolean deleteAccount(String id) {
-        // Deletion will retrieve the target item, if successful
-        DTUPayAccount deletedAccount = this.dtuPayAccounts.remove(id);
-
-        return id.equals(deletedAccount.getId());
+    public void deleteAccount(String id) {
+        this.dtuPayAccounts.remove(id);
     }
 }
 

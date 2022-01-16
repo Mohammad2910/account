@@ -15,8 +15,14 @@ public class DTUPayAccountBusinessLogic {
         this.memory = memory;
     }
 
-    public DTUPayAccount get(String id){
-       return this.memory.getAccount(id);
+    public DTUPayAccount get(String id) throws NoSuchAccountException {
+       DTUPayAccount account = this.memory.getAccount(id);
+
+       if (account == null) {
+           throw new NoSuchAccountException("No DTU Pay account exists for the given id.");
+       }
+
+       return account;
     }
 
     public Map<String, DTUPayAccount> getList() {
@@ -30,6 +36,20 @@ public class DTUPayAccountBusinessLogic {
         // Add account
         account.setId(UUID.randomUUID().toString());
         memory.addAccount(account);
+    }
+
+    public void delete(DTUPayAccount account) throws NoSuchAccountException {
+        if (checkAccount(account)) {
+            memory.deleteAccount(account.getId());
+        }
+    }
+
+    public boolean checkAccount(DTUPayAccount account) throws NoSuchAccountException {
+        if (memory.getAccount(account.getId()) != null) {
+            return true;
+        } else {
+            throw new NoSuchAccountException("Account doesn't exists");
+        }
     }
 
     public void checkUniqueBankAccount(DTUPayAccount account) throws DuplicateBankAccountException {

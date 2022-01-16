@@ -9,18 +9,16 @@ import messaging.Event;
 import messaging.MessageQueue;
 
 public class AccountController {
-
     MessageQueue queue;
     DTUPayAccountBusinessLogic accountLogic;
 
     /**
-     * Delegate events to c
+     * Delegate events to handlers
      *
-     * @param q
+     * @param queue
      * @param memory
      */
-    public AccountController(MessageQueue q, InMemory memory) {
-        queue = q;
+    public AccountController(MessageQueue queue, InMemory memory) {
         accountLogic = new DTUPayAccountBusinessLogic(memory);
         // todo: make handlers for each event Account need to look at
         queue.addHandler("CreateAccount", this::handleCreateAccountRequest);
@@ -28,6 +26,12 @@ public class AccountController {
         queue.addHandler("BankAccountRequested", this::handleExportBankAccountRequest);
     }
 
+    /**
+     * Consumes events of type CreateAccount
+     *
+     * @author Marialena
+     * @param event
+     */
     public void handleCreateAccountRequest(Event event) {
         var account = event.getArgument(0, DTUPayAccount.class);
 
@@ -65,6 +69,32 @@ public class AccountController {
 
         // Publish event
         Event accDeleteSucceeded = new Event("AccountDeletedSucceeded", new Object[] {account});
+        queue.publish(accDeleteSucceeded);
+
+    }
+
+    /**
+     * Consumes events of type GetBankAccountRequested
+     *
+     * @author Mohammad
+     * @param event
+     */
+    public void handleExportBankAccountRequest(Event event) {
+        var id = event.getArgument(0, String.class);
+
+        // Get account
+        String accountId = "";
+        try {
+           DTUPayAccount account = accountLogic.get(id);
+           accountId = account.getDtuBankAccount();
+        } catch (NoSuchAccountException e) {
+            // Publish event
+            Event accDeleteFailed = new Event("AccountExportFailed", new Object[] {e.getMessage()});
+            queue.publish(accDeleteFailed);
+        }
+
+        // Publish event
+        Event accDeleteSucceeded = new Event("AccountExportSucceeded", new Object[] {accountId});
         queue.publish(accDeleteSucceeded);
 
     }
