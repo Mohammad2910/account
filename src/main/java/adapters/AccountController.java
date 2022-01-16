@@ -1,8 +1,8 @@
 package adapters;
 
 import domain.DTUPayAccountBusinessLogic;
-import domain.DuplicateBankAccountException;
-import domain.NoSuchAccountException;
+import domain.exception.DuplicateBankAccountException;
+import domain.exception.NoSuchAccountException;
 import domain.model.DTUPayAccount;
 import domain.storage.InMemory;
 import messaging.Event;
@@ -29,7 +29,7 @@ public class AccountController {
     /**
      * Consumes events of type CreateAccount
      *
-     * @author Marialena
+     * @author s212358
      * @param event
      */
     public void handleCreateAccountRequest(Event event) {
@@ -52,7 +52,7 @@ public class AccountController {
     /**
      * Consumes events of type DeleteAccount
      *
-     * @author Mohammad
+     * @author s184171
      * @param event
      */
     public void handleDeleteAccountRequest(Event event) {
@@ -76,7 +76,7 @@ public class AccountController {
     /**
      * Consumes events of type GetBankAccountRequested
      *
-     * @author Mohammad
+     * @author s184171
      * @param event
      */
     public void handleExportBankAccountRequest(Event event) {

@@ -1,5 +1,7 @@
 package domain;
 
+import domain.exception.DuplicateBankAccountException;
+import domain.exception.NoSuchAccountException;
 import domain.model.DTUPayAccount;
 import domain.storage.InMemory;
 import java.util.Map;
@@ -15,43 +17,70 @@ public class DTUPayAccountBusinessLogic {
         this.memory = memory;
     }
 
+    /**
+     * Get an account by id
+     *
+     * @param id
+     * @return
+     * @throws NoSuchAccountException
+     */
     public DTUPayAccount get(String id) throws NoSuchAccountException {
        DTUPayAccount account = this.memory.getAccount(id);
 
        if (account == null) {
-           throw new NoSuchAccountException("No DTU Pay account exists for the given id.");
+           throw new NoSuchAccountException("Account doesn't exists");
        }
 
        return account;
     }
 
-    public Map<String, DTUPayAccount> getList() {
-        return null;
-    }
-
-    public void createAccount(DTUPayAccount account) throws DuplicateBankAccountException {
+    /**
+     * Create a DTUPay account
+     *
+     * @param account
+     * @throws DuplicateBankAccountException
+     */
+    public String createAccount(DTUPayAccount account) throws DuplicateBankAccountException {
         // check bank account already has been registered
         checkUniqueBankAccount(account);
 
         // Add account
-        account.setId(UUID.randomUUID().toString());
+        String id = UUID.randomUUID().toString();
+        account.setId(id);
         memory.addAccount(account);
+
+        return id;
     }
 
+    /**
+     * Delete a DTUPay account
+     *
+     * @param account
+     * @throws NoSuchAccountException
+     */
     public void delete(DTUPayAccount account) throws NoSuchAccountException {
         if (checkAccount(account)) {
             memory.deleteAccount(account.getId());
         }
     }
 
+    /**
+     * Check a DTUPay account exists
+     *
+     * @param account
+     * @return
+     * @throws NoSuchAccountException
+     */
     public boolean checkAccount(DTUPayAccount account) throws NoSuchAccountException {
-        if (memory.getAccount(account.getId()) != null) {
-            return true;
-        } else {
-            throw new NoSuchAccountException("Account doesn't exists");
-        }
+        return this.get(account.getId()) != null;
     }
 
+    /**
+     * Check a DTUBank account is already registered to a DTUPay account
+     *
+     * @param account
+     * @throws DuplicateBankAccountException
+     */
     public void checkUniqueBankAccount(DTUPayAccount account) throws DuplicateBankAccountException {
         // Get accounts
         Map<String, DTUPayAccount> dtuPayAccounts = memory.getAccounts();

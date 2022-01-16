@@ -1,5 +1,6 @@
 package domain.storage;
 
+import domain.exception.DuplicateBankAccountException;
 import domain.model.DTUPayAccount;
 import java.util.HashMap;
 import java.util.Map;
@@ -56,6 +57,13 @@ public class InMemory {
      */
     public void deleteAccount(String id) {
         this.dtuPayAccounts.remove(id);
+    }
+
+    /**
+     * Cleans up the registration list
+     */
+    public void cleanAccounts() {
+        this.dtuPayAccounts.clear();
     }
 }
 

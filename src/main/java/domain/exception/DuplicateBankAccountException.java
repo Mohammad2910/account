@@ -1,4 +1,4 @@
-package domain;
+package domain.exception;
 
 public class DuplicateBankAccountException extends Exception{
 
