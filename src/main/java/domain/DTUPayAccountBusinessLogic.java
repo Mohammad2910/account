@@ -65,17 +65,6 @@ public class DTUPayAccountBusinessLogic {
     }
 
     /**
-     * Check a DTUPay account exists
-     *
-     * @param account
-     * @return
-     * @throws NoSuchAccountException
-     */
-    public boolean checkAccount(DTUPayAccount account) throws NoSuchAccountException {
-        return this.get(account.getId()) != null;
-    }
-
-    /**
      * Check a DTUBank account is already registered to a DTUPay account
      *
      * @param account

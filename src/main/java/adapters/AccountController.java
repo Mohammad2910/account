@@ -27,12 +27,12 @@ public class AccountController {
     }
 
     /**
-     * Consumes events of type CreateAccount
+     * Consumes events of type CreateCustomerAccount
      *
      * @author s212358
      * @param event
      */
-    public void handleCreateAccountRequest(Event event) {
+    public void handleCreateCustomerAccountRequest(Event event) {
         var account = event.getArgument(0, DTUPayAccount.class);
 
         try {
@@ -52,7 +52,7 @@ public class AccountController {
     /**
      * Consumes events of type DeleteAccount
      *
-     * @author s184171
+     * @author s184174
      * @param event
      */
     public void handleDeleteAccountRequest(Event event) {
@@ -76,7 +76,7 @@ public class AccountController {
     /**
      * Consumes events of type GetBankAccountRequested
      *
-     * @author s184171
+     * @author s184174
      * @param event
      */
     public void handleExportBankAccountRequest(Event event) {

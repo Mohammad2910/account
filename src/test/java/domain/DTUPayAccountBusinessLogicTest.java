@@ -30,10 +30,10 @@ class DTUPayAccountBusinessLogicTest {
             account.setName("John Doe");
             account.setCpr("1234");
             account.setDtuBankAccount("bank identifier");
-            String id = businessLogic.createAccount(account);
+            businessLogic.createAccount(account);
 
             // Get account by id
-            businessLogic.get(id);
+            businessLogic.get(account.getId());
             result = true;
         } catch (NoSuchAccountException|DuplicateBankAccountException e) {
             System.out.println(e.getMessage());
