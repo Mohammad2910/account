@@ -59,7 +59,7 @@ public class DTUPayAccountBusinessLogic {
      * @throws NoSuchAccountException
      */
     public void delete(DTUPayAccount account) throws NoSuchAccountException {
-        if (checkAccount(account)) {
+        if (this.get(account.getId()) != null) {
             memory.deleteAccount(account.getId());
         }
     }

@@ -21,7 +21,8 @@ public class AccountController {
     public AccountController(MessageQueue queue, InMemory memory) {
         accountLogic = new DTUPayAccountBusinessLogic(memory);
         // todo: make handlers for each event Account need to look at
-        queue.addHandler("CreateAccount", this::handleCreateAccountRequest);
+        queue.addHandler("CreateCustomerAccount", this::handleCreateCustomerAccountRequest);
+        queue.addHandler("CreateMerchantAccount", this::handleCreateMerchantAccountRequest);
         queue.addHandler("DeleteAccount", this::handleDeleteAccountRequest);
         queue.addHandler("BankAccountRequested", this::handleExportBankAccountRequest);
     }
@@ -40,12 +41,38 @@ public class AccountController {
             accountLogic.createAccount(account);
         } catch (DuplicateBankAccountException e) {
             // Publish event
-            Event accCreationFailed = new Event("AccountCreatedFailed", new Object[] {e.getMessage()});
+            Event accCreationFailed = new Event("CustomerAccountCreatedFailed", new Object[] {e.getMessage()});
+            queue.publish(accCreationFailed);
+        }
+
+        // Publish event for facade
+        Event accCreationSucceeded = new Event("CustomerAccountCreatedSucceeded", new Object[] {account});
+        queue.publish(accCreationSucceeded);
+
+        // Publish event for token
+        Event tokenAssign = new Event("AssignTokensToCustomer", new Object[] {account});
+        queue.publish(tokenAssign);
+    }
+    /**
+     * Merchant events of type CreateMerchantAccount
+     *
+     * @author s212358
+     * @param event
+     */
+    public void handleCreateMerchantAccountRequest(Event event) {
+        var account = event.getArgument(0, DTUPayAccount.class);
+
+        try {
+            // Create account
+            accountLogic.createAccount(account);
+        } catch (DuplicateBankAccountException e) {
+            // Publish event
+            Event accCreationFailed = new Event("MerchantAccountCreatedFailed", new Object[] {e.getMessage()});
             queue.publish(accCreationFailed);
         }
 
         // Publish event
-        Event accCreationSucceeded = new Event("AccountCreatedSucceeded", new Object[] {account});
+        Event accCreationSucceeded = new Event("MerchantAccountCreatedSucceeded", new Object[] {account});
         queue.publish(accCreationSucceeded);
     }
 

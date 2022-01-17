@@ -103,10 +103,10 @@ class DTUPayAccountBusinessLogicTest {
             account.setName("John Doe");
             account.setCpr("1234");
             account.setDtuBankAccount("bank identifier");
-            String id = businessLogic.createAccount(account);
+            businessLogic.createAccount(account);
 
             // Delete account
-            account.setId(id);
+            account.setId(account.getId());
             businessLogic.delete(account);
             result = true;
         } catch (NoSuchAccountException|DuplicateBankAccountException e) {
