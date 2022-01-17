@@ -93,9 +93,9 @@ public class AccountController {
             Event accDeleteFailed = new Event("AccountDeletedFailed", new Object[] {e.getMessage()});
             queue.publish(accDeleteFailed);
         }
-
+        String deleteMsg = "Account with id: " + account.getId() + " is succesfully deleted";
         // Publish event
-        Event accDeleteSucceeded = new Event("AccountDeletedSucceeded", new Object[] {account});
+        Event accDeleteSucceeded = new Event("AccountDeletedSucceeded", new Object[] {deleteMsg});
         queue.publish(accDeleteSucceeded);
 
     }
