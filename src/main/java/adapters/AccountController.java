@@ -4,6 +4,7 @@ import domain.DTUPayAccountBusinessLogic;
 import domain.exception.DuplicateBankAccountException;
 import domain.exception.NoSuchAccountException;
 import domain.model.DTUPayAccount;
+import domain.model.PaymentEvent;
 import domain.storage.InMemory;
 import messaging.Event;
 import messaging.MessageQueue;
@@ -24,7 +25,7 @@ public class AccountController {
         queue.addHandler("CreateCustomerAccount", this::handleCreateCustomerAccountRequest);
         queue.addHandler("CreateMerchantAccount", this::handleCreateMerchantAccountRequest);
         queue.addHandler("DeleteAccount", this::handleDeleteAccountRequest);
-        queue.addHandler("BankAccountRequested", this::handleExportBankAccountRequest);
+        queue.addHandler("ExportBankAccounts", this::handleExportBankAccountsRequest);
     }
 
     /**
@@ -93,7 +94,7 @@ public class AccountController {
             Event accDeleteFailed = new Event("AccountDeletedFailed", new Object[] {e.getMessage()});
             queue.publish(accDeleteFailed);
         }
-        String deleteMsg = "Account with id: " + account.getId() + " is succesfully deleted";
+        String deleteMsg = "Account with id: " + account.getId() + " is successfully deleted";
         // Publish event
         Event accDeleteSucceeded = new Event("AccountDeletedSucceeded", new Object[] {deleteMsg});
         queue.publish(accDeleteSucceeded);
@@ -101,28 +102,36 @@ public class AccountController {
     }
 
     /**
-     * Consumes events of type GetBankAccountRequested
+     * Consumes events of type ExtractBankAccounts and publishes an event that includes the PaymentEvent with
+     * extracted the customer and merchant bank accounts from their respective ids.
      *
      * @author s184174
      * @param event
      */
-    public void handleExportBankAccountRequest(Event event) {
-        var id = event.getArgument(0, String.class);
+    public void handleExportBankAccountsRequest(Event event) {
+        PaymentEvent paymentEvent = event.getArgument(0, PaymentEvent.class);
 
         // Get account
         String accountId = "";
         try {
-           DTUPayAccount account = accountLogic.get(id);
-           accountId = account.getDtuBankAccount();
+            // Get customer bank account
+            DTUPayAccount customerAccount = accountLogic.get(paymentEvent.getCustomerId());
+            String customerBankAccount = customerAccount.getDtuBankAccount();
+            paymentEvent.setCustomerBankAccount(customerBankAccount);
+
+            // Get merchant bank account
+            DTUPayAccount merchantAccount = accountLogic.get(paymentEvent.getMerchantId());
+            String merchantBankAccount = merchantAccount.getDtuBankAccount();
+            paymentEvent.setMerchantBankAccount(merchantBankAccount);
         } catch (NoSuchAccountException e) {
             // Publish event
-            Event accDeleteFailed = new Event("AccountExportFailed", new Object[] {e.getMessage()});
-            queue.publish(accDeleteFailed);
+            Event accExtractedFailed = new Event("AccountsExportFailed", new Object[] {e.getMessage()});
+            queue.publish(accExtractedFailed);
         }
 
-        // Publish event
-        Event accDeleteSucceeded = new Event("AccountExportSucceeded", new Object[] {accountId});
-        queue.publish(accDeleteSucceeded);
+        // Publish event for the payment microservice to complete the payment
+        Event accExportedSucceeded = new Event("BankAccountsExported", new Object[] {paymentEvent});
+        queue.publish(accExportedSucceeded);
 
     }
 }
