@@ -49,14 +49,10 @@ public class AccountController {
      * @param event
      */
     public void handleCreateCustomerAccountRequest(Event event) {
-        // Check for propagated errors
-        String errorMessage = event.getArgument(2, String.class);
+        // Publish propagated error, if any
         String requestId = event.getArgument(0, String.class);
-        if (!errorMessage.isEmpty()) {
-            // Publish event
-            Event accCreationFailed = new Event("CustomerAccountCreated", new Object[] {requestId, null, errorMessage});
-            queue.publish(accCreationFailed);
-        }
+        String errorMessage = event.getArgument(2, String.class);
+        this.publishPropagatedError("CustomerAccountCreated", requestId, errorMessage);
 
         // Create account
         DTUPayAccount account = event.getArgument(1, DTUPayAccount.class);
@@ -95,14 +91,10 @@ public class AccountController {
      * @param event
      */
     public void handleCreateMerchantAccountRequest(Event event) {
-        // Check for propagated errors
-        String errorMessage = event.getArgument(2, String.class);
+        // Publish propagated error, if any
         String requestId = event.getArgument(0, String.class);
-        if (!errorMessage.isEmpty()) {
-            // Publish event
-            Event accCreationFailed = new Event("MerchantAccountCreated", new Object[] {requestId, null, errorMessage});
-            queue.publish(accCreationFailed);
-        }
+        String errorMessage = event.getArgument(2, String.class);
+        this.publishPropagatedError("MerchantAccountCreated", requestId, errorMessage);
 
         // Create account
         DTUPayAccount account = event.getArgument(1, DTUPayAccount.class);
@@ -140,14 +132,10 @@ public class AccountController {
      * @param event
      */
     public void handleDeleteAccountRequest(Event event) {
-        // Check for propagated errors
-        String errorMessage = event.getArgument(2, String.class);
+        // Publish propagated error, if any
         String requestId = event.getArgument(0, String.class);
-        if (!errorMessage.isEmpty()) {
-            // Publish event
-            Event accCreationFailed = new Event("AccountDeleted", new Object[] {requestId, null, errorMessage});
-            queue.publish(accCreationFailed);
-        }
+        String errorMessage = event.getArgument(2, String.class);
+        this.publishPropagatedError("AccountDeleted", requestId, errorMessage);
 
         // Delete account
         String accountId = event.getArgument(1, String.class);
@@ -170,12 +158,12 @@ public class AccountController {
      *
      *  Consumed event arguments:
      * 1. requestId
-     * 2. PaymentEvent
+     * 2. PaymentPayload
      * 3. errorMessage
      *
      * Successful event arguments:
      * 1. requestId
-     * 2. PaymentEvent
+     * 2. PaymentPayload
      *
      * Failed event arguments:
      * 1. requestId
@@ -186,14 +174,10 @@ public class AccountController {
      * @param event
      */
     public void handleExportBankAccountsRequest(Event event) {
-        // Check for propagated errors
-        String errorMessage = event.getArgument(2, String.class);
+        // Publish propagated error, if any
         String requestId = event.getArgument(0, String.class);
-        if (!errorMessage.isEmpty()) {
-            // Publish event
-            Event accCreationFailed = new Event("BankAccountsExported", new Object[] {requestId, null, errorMessage});
-            queue.publish(accCreationFailed);
-        }
+        String errorMessage = event.getArgument(2, String.class);
+        this.publishPropagatedError("BankAccountsExported", requestId, errorMessage);
 
         // Get account
         PaymentPayload paymentEvent = event.getArgument(1, PaymentPayload.class);
@@ -236,18 +220,30 @@ public class AccountController {
      * @param event
      */
     public void handleTokenSupplyResponse(Event event) {
-        // Check for propagated errors
-        String errorMessage = event.getArgument(2, String.class);
+        // Publish propagated error, if any
         String requestId = event.getArgument(0, String.class);
-        if (!errorMessage.isEmpty()) {
-            // Publish event
-            Event accCreationFailed = new Event("CustomerAccountCreated", new Object[] {requestId, null, errorMessage});
-            queue.publish(accCreationFailed);
-        }
+        String errorMessage = event.getArgument(2, String.class);
+        this.publishPropagatedError("CustomerAccountCreated", requestId, errorMessage);
 
         // Publish response event for facade
         String customerId = event.getArgument(0, String.class);
         Event accCreationSucceeded = new Event("CustomerAccountCreated", new Object[] {requestId, "Merchant Account is successfully created with id: " + customerId});
         queue.publish(accCreationSucceeded);
+    }
+
+    /**
+     * It propagates error messages sent by the consumed events.
+     *
+     * @param eventName
+     * @param requestId
+     * @param errorMessage
+     */
+    private void publishPropagatedError(String eventName, String requestId, String errorMessage) {
+        // Publish propagated error, if any
+        if (errorMessage == null) {
+            // Publish event
+            Event errorPropagated = new Event(eventName, new Object[] {requestId, null, errorMessage});
+            queue.publish(errorPropagated);
+        }
     }
 }
