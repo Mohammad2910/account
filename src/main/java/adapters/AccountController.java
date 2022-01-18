@@ -1,10 +1,10 @@
 package adapters;
 
+import domain.model.*;
+import domain.storage.InMemory;
 import domain.DTUPayAccountBusinessLogic;
 import domain.exception.DuplicateBankAccountException;
 import domain.exception.NoSuchAccountException;
-import domain.model.*;
-import domain.storage.InMemory;
 import messaging.Event;
 import messaging.MessageQueue;
 
@@ -25,116 +25,178 @@ public class AccountController {
         queue.addHandler("CreateMerchantAccount", this::handleCreateMerchantAccountRequest);
         queue.addHandler("ExportBankAccounts", this::handleExportBankAccountsRequest);
         queue.addHandler("DeleteAccount", this::handleDeleteAccountRequest);
-        queue.addHandler("TokenSupplyResponse", this::handleTokenSupplyResponse);
+        queue.addHandler("CustomerTokensSupplied", this::handleTokenSupplyResponse);
     }
 
     /**
-     * Consumes events of type CreateCustomerAccount and published a TokenSupplyEvent or a not completed ResponseEvent.
-     * In case of a "not completed" (false) it will publish a ResponseEvent with the requestId and the
-     * propagated error message.
+     * Consumes events of type CreateCustomerAccount and published an event in queue SupplyCustomerWithTokens
+     *
+     * Consumed event arguments:
+     * 1. requestId
+     * 2. DTUPayAccount
+     * 3. errorMessage
+     *
+     * Successful event arguments:
+     * 1. requestId
+     * 2. customerId
+     *
+     * Failed event arguments:
+     * 1. requestId
+     * 2. null
+     * 3. error message
      *
      * @author s212358
      * @param event
      */
     public void handleCreateCustomerAccountRequest(Event event) {
-        // Get arguments
-        var accountEvent = event.getArgument(0, CreateAccountEvent.class);
+        // Check for propagated errors
+        String errorMessage = event.getArgument(2, String.class);
+        String requestId = event.getArgument(0, String.class);
+        if (!errorMessage.isEmpty()) {
+            // Publish event
+            Event accCreationFailed = new Event("CustomerAccountCreated", new Object[] {requestId, null, errorMessage});
+            queue.publish(accCreationFailed);
+        }
 
-        // Init account model
-        DTUPayAccount account = new DTUPayAccount("", accountEvent.getName(), accountEvent.getCpr(), accountEvent.getDtuBankAccount());
-
+        // Create account
+        DTUPayAccount account = event.getArgument(1, DTUPayAccount.class);
         try {
-            // Create account
             accountLogic.createAccount(account);
         } catch (DuplicateBankAccountException e) {
-            // Publish event
-            ResponseEvent response = new ResponseEvent(accountEvent.getRequestId(), e.getMessage(), false);
-            Event accCreationFailed = new Event("CustomerAccountCreatedFailed", new Object[] {response});
+            // Publish event with propagated error
+            Event accCreationFailed = new Event("CustomerAccountCreated", new Object[] {requestId, null, e.getMessage()});
             queue.publish(accCreationFailed);
         }
 
         // Publish event for token
-        SupplyTokenEvent supplyEvent = new SupplyTokenEvent(accountEvent.getRequestId(), account.getId());
-        Event tokenAssign = new Event("AssignTokensToCustomer", new Object[] {supplyEvent});
+        Event tokenAssign = new Event("CustomerTokenSupplied", new Object[] {requestId, account.getId()});
         queue.publish(tokenAssign);
     }
 
     /**
-     * Consumes events of type CreateMerchantAccount and published a completed or not completed ResponseEvent.
-     * In case of a "not completed" (false) it will publish a ResponseEvent with the requestId and the
-     * propagated error message.
+     *
+     * Consumes events of type CreateMerchantAccount and published an event in queue CustomerAccountCreated
+     *
+     * Consumed event arguments:
+     * 1. requestId
+     * 2. DTUPayAccount
+     * 3. errorMessage
+     *
+     * Successful event arguments:
+     * 1. requestId
+     * 2. customerId
+     *
+     * Failed event arguments:
+     * 1. requestId
+     * 2. null
+     * 3. error message
      *
      * @author s212358
      * @param event
      */
     public void handleCreateMerchantAccountRequest(Event event) {
-        // Get arguments
-        var accountEvent = event.getArgument(0, CreateAccountEvent.class);
-
-        // Init account model
-        DTUPayAccount account = new DTUPayAccount("", accountEvent.getName(), accountEvent.getCpr(), accountEvent.getDtuBankAccount());
-
-        try {
-            // Create account
-            accountLogic.createAccount(account);
-        } catch (DuplicateBankAccountException e) {
+        // Check for propagated errors
+        String errorMessage = event.getArgument(2, String.class);
+        String requestId = event.getArgument(0, String.class);
+        if (!errorMessage.isEmpty()) {
             // Publish event
-            ResponseEvent response = new ResponseEvent(accountEvent.getRequestId(), e.getMessage(), false);
-            Event accCreationFailed = new Event("MerchantAccountCreatedFailed", new Object[] {response});
+            Event accCreationFailed = new Event("MerchantAccountCreated", new Object[] {requestId, null, errorMessage});
             queue.publish(accCreationFailed);
         }
 
-        // Publish event
-        ResponseEvent response = new ResponseEvent(accountEvent.getRequestId(), "Merchant Account is successfully created!", true);
-        Event accCreationSucceeded = new Event("MerchantAccountCreateResponse", new Object[] {response});
+        // Create account
+        DTUPayAccount account = event.getArgument(1, DTUPayAccount.class);
+        try {
+            accountLogic.createAccount(account);
+        } catch (DuplicateBankAccountException e) {
+            // Publish event with propagated error
+            Event accCreationFailed = new Event("MerchantAccountCreated", new Object[] {requestId, null, e.getMessage()});
+            queue.publish(accCreationFailed);
+        }
+
+        // Publish event for the facade
+        Event accCreationSucceeded = new Event("MerchantAccountCreated", new Object[] {requestId, "Merchant Account is successfully created with id: " + account.getId()});
         queue.publish(accCreationSucceeded);
     }
 
     /**
-     * Consumes events of type DeleteAccount and published a completed or not completed ResponseEvent.
-     * In case of a "not completed" (false) it will publish a ResponseEvent with the requestId and the
-     * propagated error message.
+     * Consumes events of type DeleteAccount and published an event in queue AccountDeleted
+     *
+     * Consumed event arguments:
+     * 1. requestId
+     * 2. accountId
+     * 3. errorMessage
+     *
+     * Successful event arguments:
+     * 1. requestId
+     * 2. success message
+     *
+     * Failed event arguments:
+     * 1. requestId
+     * 2. null
+     * 3. error message
      *
      * @author s184174
      * @param event
      */
     public void handleDeleteAccountRequest(Event event) {
-        // Get arguments
-        DeleteAccountEvent accountEvent = event.getArgument(0, DeleteAccountEvent.class);
+        // Check for propagated errors
+        String errorMessage = event.getArgument(2, String.class);
+        String requestId = event.getArgument(0, String.class);
+        if (!errorMessage.isEmpty()) {
+            // Publish event
+            Event accCreationFailed = new Event("AccountDeleted", new Object[] {requestId, null, errorMessage});
+            queue.publish(accCreationFailed);
+        }
 
         // Delete account
+        String accountId = event.getArgument(1, String.class);
         try {
-            DTUPayAccount account = accountLogic.get(accountEvent.getId());
+            DTUPayAccount account = accountLogic.get(accountId);
             accountLogic.delete(account);
         } catch (NoSuchAccountException e) {
             // Publish response event for facade with propagated error message
-            ResponseEvent response = new ResponseEvent(accountEvent.getRequestId(), e.getMessage(), false);
-            Event accDeleteFailed = new Event("AccountDeletedFailed", new Object[] {response});
+            Event accDeleteFailed = new Event("AccountDeleted", new Object[] {requestId, null, e.getMessage()});
             queue.publish(accDeleteFailed);
         }
 
         // Publish event for facade
-        String deleteMsg = "Account with id: " + accountEvent.getId() + " is successfully deleted";
-        ResponseEvent response = new ResponseEvent(accountEvent.getRequestId(), deleteMsg, false);
-        Event accDeleteSucceeded = new Event("AccountDeletedSucceeded", new Object[] {response});
+        Event accDeleteSucceeded = new Event("AccountDeleted", new Object[] {requestId, "Account with id: " + accountId + " is successfully deleted"});
         queue.publish(accDeleteSucceeded);
     }
 
     /**
-     * Consumes events of type ExtractBankAccounts and publishes an event that includes the
-     * PaymentEvent with  extracted the customer and merchant bank accounts from their respective ids.
-     * In case of failure the published event will be a ResponseEvent with the requestId and the
-     * propagated error message.
+     * Consumes events of type ExtractBankAccounts and published an event in queue BankAccountsExported
+     *
+     *  Consumed event arguments:
+     * 1. requestId
+     * 2. PaymentEvent
+     * 3. errorMessage
+     *
+     * Successful event arguments:
+     * 1. requestId
+     * 2. PaymentEvent
+     *
+     * Failed event arguments:
+     * 1. requestId
+     * 2. null
+     * 3. error message
      *
      * @author s184174
      * @param event
      */
     public void handleExportBankAccountsRequest(Event event) {
-        // Get arguments
-        PaymentEvent paymentEvent = event.getArgument(0, PaymentEvent.class);
+        // Check for propagated errors
+        String errorMessage = event.getArgument(2, String.class);
+        String requestId = event.getArgument(0, String.class);
+        if (!errorMessage.isEmpty()) {
+            // Publish event
+            Event accCreationFailed = new Event("BankAccountsExported", new Object[] {requestId, null, errorMessage});
+            queue.publish(accCreationFailed);
+        }
 
         // Get account
-        String accountId = "";
+        PaymentPayload paymentEvent = event.getArgument(1, PaymentPayload.class);
         try {
             // Set customer bank account to payment event
             DTUPayAccount customerAccount = accountLogic.get(paymentEvent.getCustomerId());
@@ -145,40 +207,47 @@ public class AccountController {
             paymentEvent.setMerchantBankAccount(merchantAccount.getDtuBankAccount());
         } catch (NoSuchAccountException e) {
             // Publish response event for the payment microservice
-            ResponseEvent response = new ResponseEvent(paymentEvent.getRequestId(), e.getMessage(), false);
-            Event accExtractedFailed = new Event("BankAccountsExportFailed", new Object[] {response});
+            Event accExtractedFailed = new Event("BankAccountsExported", new Object[] {requestId, null, e.getMessage()});
             queue.publish(accExtractedFailed);
         }
 
         // Publish payment event for the payment microservice to complete the payment
-        Event accExportedSucceeded = new Event("BankAccountsExported", new Object[] {paymentEvent});
+        Event accExportedSucceeded = new Event("BankAccountsExported", new Object[] {requestId, paymentEvent});
         queue.publish(accExportedSucceeded);
     }
 
     /**
-     * Consumes events of type TokenSupplyResponse and published a completed or not completed ResponseEvent.
+     * Consumes events of type CustomerTokensSupplied and published an event in queue CustomerAccountCreated
      *
-     * Based on the "completed" flag of the ResponseEvent:
-     * If the token supply response is "completed" (true) then a completed ResponseEvent will be published for the customer account,
-     * otherwise it will publish a "not completed" (false) ResponseEvent with propagated error message from the token supply.
+     *  Consumed event arguments:
+     * 1. requestId
+     * 2. customerId
+     * 3. errorMessage
+     *
+     * Successful event arguments:
+     * 1. requestId
+     * 2. success message
+     *
+     * Failed event arguments:
+     * 1. requestId
+     * 2. null
+     * 3. error message
      *
      * @param event
      */
     public void handleTokenSupplyResponse(Event event) {
-        // Get arguments
-        ResponseEvent response = event.getArgument(0, ResponseEvent.class);
-
-        // Check if token supply failed
-        if (!response.isCompleted()){
-            // Propagate error tto facade
-            Event accExportedSucceeded = new Event("AccountCreateResponse", new Object[] {response});
+        // Check for propagated errors
+        String errorMessage = event.getArgument(2, String.class);
+        String requestId = event.getArgument(0, String.class);
+        if (!errorMessage.isEmpty()) {
+            // Publish event
+            Event accCreationFailed = new Event("CustomerAccountCreated", new Object[] {requestId, null, errorMessage});
+            queue.publish(accCreationFailed);
         }
 
-        // Override with customer account create message
-        response.setMessage("Customer Account is successfully created!");
-
         // Publish response event for facade
-        Event accCreationSucceeded = new Event("CustomerAccountCreateResponse", new Object[] {response});
+        String customerId = event.getArgument(0, String.class);
+        Event accCreationSucceeded = new Event("CustomerAccountCreated", new Object[] {requestId, "Merchant Account is successfully created with id: " + customerId});
         queue.publish(accCreationSucceeded);
     }
 }

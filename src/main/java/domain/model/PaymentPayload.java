@@ -7,7 +7,6 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class ResponseEvent {
-    String requestId, message;
-    boolean completed;
+public class PaymentPayload {
+    String merchantId, customerId, customerBankAccount, merchantBankAccount, token, amount;
 }
