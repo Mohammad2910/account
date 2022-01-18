@@ -3,8 +3,7 @@ package adapters;
 import domain.DTUPayAccountBusinessLogic;
 import domain.exception.DuplicateBankAccountException;
 import domain.exception.NoSuchAccountException;
-import domain.model.DTUPayAccount;
-import domain.model.PaymentEvent;
+import domain.model.*;
 import domain.storage.InMemory;
 import messaging.Event;
 import messaging.MessageQueue;
@@ -24,8 +23,9 @@ public class AccountController {
         // todo: make handlers for each event Account need to look at
         queue.addHandler("CreateCustomerAccount", this::handleCreateCustomerAccountRequest);
         queue.addHandler("CreateMerchantAccount", this::handleCreateMerchantAccountRequest);
-        queue.addHandler("DeleteAccount", this::handleDeleteAccountRequest);
         queue.addHandler("ExportBankAccounts", this::handleExportBankAccountsRequest);
+        queue.addHandler("DeleteAccount", this::handleDeleteAccountRequest);
+        queue.addHandler("TokenSupplyResponse", this::handleTokenSupplyResponse);
     }
 
     /**
@@ -35,25 +35,28 @@ public class AccountController {
      * @param event
      */
     public void handleCreateCustomerAccountRequest(Event event) {
-        var account = event.getArgument(0, DTUPayAccount.class);
+        // Get arguments
+        var accountEvent = event.getArgument(0, CreateAccountEvent.class);
+
+        // Init account model
+        DTUPayAccount account = new DTUPayAccount("", accountEvent.getName(), accountEvent.getCpr(), accountEvent.getDtuBankAccount());
 
         try {
             // Create account
             accountLogic.createAccount(account);
         } catch (DuplicateBankAccountException e) {
             // Publish event
-            Event accCreationFailed = new Event("CustomerAccountCreatedFailed", new Object[] {e.getMessage()});
+            ResponseEvent response = new ResponseEvent(accountEvent.getRequestId(), e.getMessage(), false);
+            Event accCreationFailed = new Event("CustomerAccountCreatedFailed", new Object[] {response});
             queue.publish(accCreationFailed);
         }
 
-        // Publish event for facade
-        Event accCreationSucceeded = new Event("CustomerAccountCreatedSucceeded", new Object[] {account});
-        queue.publish(accCreationSucceeded);
-
         // Publish event for token
-        Event tokenAssign = new Event("AssignTokensToCustomer", new Object[] {account});
+        SupplyTokenEvent supplyEvent = new SupplyTokenEvent(accountEvent.getRequestId(), account.getId());
+        Event tokenAssign = new Event("AssignTokensToCustomer", new Object[] {supplyEvent});
         queue.publish(tokenAssign);
     }
+
     /**
      * Merchant events of type CreateMerchantAccount
      *
@@ -61,19 +64,25 @@ public class AccountController {
      * @param event
      */
     public void handleCreateMerchantAccountRequest(Event event) {
-        var account = event.getArgument(0, DTUPayAccount.class);
+        // Get arguments
+        var accountEvent = event.getArgument(0, CreateAccountEvent.class);
+
+        // Init account model
+        DTUPayAccount account = new DTUPayAccount("", accountEvent.getName(), accountEvent.getCpr(), accountEvent.getDtuBankAccount());
 
         try {
             // Create account
             accountLogic.createAccount(account);
         } catch (DuplicateBankAccountException e) {
             // Publish event
-            Event accCreationFailed = new Event("MerchantAccountCreatedFailed", new Object[] {e.getMessage()});
+            ResponseEvent response = new ResponseEvent(accountEvent.getRequestId(), e.getMessage(), false);
+            Event accCreationFailed = new Event("MerchantAccountCreatedFailed", new Object[] {response});
             queue.publish(accCreationFailed);
         }
 
         // Publish event
-        Event accCreationSucceeded = new Event("MerchantAccountCreatedSucceeded", new Object[] {account});
+        ResponseEvent response = new ResponseEvent(accountEvent.getRequestId(), "Merchant Account is successfully created!", true);
+        Event accCreationSucceeded = new Event("MerchantAccountCreateResponse", new Object[] {response});
         queue.publish(accCreationSucceeded);
     }
 
@@ -84,6 +93,7 @@ public class AccountController {
      * @param event
      */
     public void handleDeleteAccountRequest(Event event) {
+        // Get arguments
         var account = event.getArgument(0, DTUPayAccount.class);
 
         // Delete account
@@ -94,8 +104,9 @@ public class AccountController {
             Event accDeleteFailed = new Event("AccountDeletedFailed", new Object[] {e.getMessage()});
             queue.publish(accDeleteFailed);
         }
-        String deleteMsg = "Account with id: " + account.getId() + " is successfully deleted";
+
         // Publish event
+        String deleteMsg = "Account with id: " + account.getId() + " is successfully deleted";
         Event accDeleteSucceeded = new Event("AccountDeletedSucceeded", new Object[] {deleteMsg});
         queue.publish(accDeleteSucceeded);
 
@@ -109,29 +120,55 @@ public class AccountController {
      * @param event
      */
     public void handleExportBankAccountsRequest(Event event) {
+        // Get arguments
         PaymentEvent paymentEvent = event.getArgument(0, PaymentEvent.class);
 
         // Get account
         String accountId = "";
         try {
-            // Get customer bank account
+            // Set customer bank account to payment event
             DTUPayAccount customerAccount = accountLogic.get(paymentEvent.getCustomerId());
-            String customerBankAccount = customerAccount.getDtuBankAccount();
-            paymentEvent.setCustomerBankAccount(customerBankAccount);
+            paymentEvent.setCustomerBankAccount(customerAccount.getDtuBankAccount());
 
-            // Get merchant bank account
+            // Set merchant bank account to payment event
             DTUPayAccount merchantAccount = accountLogic.get(paymentEvent.getMerchantId());
-            String merchantBankAccount = merchantAccount.getDtuBankAccount();
-            paymentEvent.setMerchantBankAccount(merchantBankAccount);
+            paymentEvent.setMerchantBankAccount(merchantAccount.getDtuBankAccount());
         } catch (NoSuchAccountException e) {
-            // Publish event
-            Event accExtractedFailed = new Event("AccountsExportFailed", new Object[] {e.getMessage()});
+            // Publish response event for the payment microservice
+            ResponseEvent response = new ResponseEvent(paymentEvent.getRequestId(), e.getMessage(), false);
+            Event accExtractedFailed = new Event("BankAccountsExportFailed", new Object[] {response});
             queue.publish(accExtractedFailed);
         }
 
-        // Publish event for the payment microservice to complete the payment
+        // Publish payment event for the payment microservice to complete the payment
         Event accExportedSucceeded = new Event("BankAccountsExported", new Object[] {paymentEvent});
         queue.publish(accExportedSucceeded);
+    }
 
+    /**
+     * Consumes events of type TokenSupplyResponse and publishes a response event.
+     *
+     * Based on the "completed" flag of the response event:
+     * If the token supply response is "completed" (true) then a completed response event will be published for the customer account,
+     * otherwise it will publish a "not completed" (false) response event with propagated error message from the token supply.
+     *
+     * @param event
+     */
+    public void handleTokenSupplyResponse(Event event) {
+        // Get arguments
+        ResponseEvent response = event.getArgument(0, ResponseEvent.class);
+
+        // Check if token supply failed
+        if (!response.isCompleted()){
+            // Propagate error tto facade
+            Event accExportedSucceeded = new Event("AccountCreateResponse", new Object[] {response});
+        }
+
+        // Override with customer account create message
+        response.setMessage("Customer Account is successfully created!");
+
+        // Publish response event for facade
+        Event accCreationSucceeded = new Event("CustomerAccountCreateResponse", new Object[] {response});
+        queue.publish(accCreationSucceeded);
     }
 }
