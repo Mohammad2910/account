@@ -29,7 +29,9 @@ public class AccountController {
     }
 
     /**
-     * Consumes events of type CreateCustomerAccount
+     * Consumes events of type CreateCustomerAccount and published a TokenSupplyEvent or a not completed ResponseEvent.
+     * In case of a "not completed" (false) it will publish a ResponseEvent with the requestId and the
+     * propagated error message.
      *
      * @author s212358
      * @param event
@@ -58,7 +60,9 @@ public class AccountController {
     }
 
     /**
-     * Merchant events of type CreateMerchantAccount
+     * Consumes events of type CreateMerchantAccount and published a completed or not completed ResponseEvent.
+     * In case of a "not completed" (false) it will publish a ResponseEvent with the requestId and the
+     * propagated error message.
      *
      * @author s212358
      * @param event
@@ -87,34 +91,40 @@ public class AccountController {
     }
 
     /**
-     * Consumes events of type DeleteAccount
+     * Consumes events of type DeleteAccount and published a completed or not completed ResponseEvent.
+     * In case of a "not completed" (false) it will publish a ResponseEvent with the requestId and the
+     * propagated error message.
      *
      * @author s184174
      * @param event
      */
     public void handleDeleteAccountRequest(Event event) {
         // Get arguments
-        var account = event.getArgument(0, DTUPayAccount.class);
+        DeleteAccountEvent accountEvent = event.getArgument(0, DeleteAccountEvent.class);
 
         // Delete account
         try {
+            DTUPayAccount account = accountLogic.get(accountEvent.getId());
             accountLogic.delete(account);
         } catch (NoSuchAccountException e) {
-            // Publish event
-            Event accDeleteFailed = new Event("AccountDeletedFailed", new Object[] {e.getMessage()});
+            // Publish response event for facade with propagated error message
+            ResponseEvent response = new ResponseEvent(accountEvent.getRequestId(), e.getMessage(), false);
+            Event accDeleteFailed = new Event("AccountDeletedFailed", new Object[] {response});
             queue.publish(accDeleteFailed);
         }
 
-        // Publish event
-        String deleteMsg = "Account with id: " + account.getId() + " is successfully deleted";
-        Event accDeleteSucceeded = new Event("AccountDeletedSucceeded", new Object[] {deleteMsg});
+        // Publish event for facade
+        String deleteMsg = "Account with id: " + accountEvent.getId() + " is successfully deleted";
+        ResponseEvent response = new ResponseEvent(accountEvent.getRequestId(), deleteMsg, false);
+        Event accDeleteSucceeded = new Event("AccountDeletedSucceeded", new Object[] {response});
         queue.publish(accDeleteSucceeded);
-
     }
 
     /**
-     * Consumes events of type ExtractBankAccounts and publishes an event that includes the PaymentEvent with
-     * extracted the customer and merchant bank accounts from their respective ids.
+     * Consumes events of type ExtractBankAccounts and publishes an event that includes the
+     * PaymentEvent with  extracted the customer and merchant bank accounts from their respective ids.
+     * In case of failure the published event will be a ResponseEvent with the requestId and the
+     * propagated error message.
      *
      * @author s184174
      * @param event
@@ -146,11 +156,11 @@ public class AccountController {
     }
 
     /**
-     * Consumes events of type TokenSupplyResponse and publishes a response event.
+     * Consumes events of type TokenSupplyResponse and published a completed or not completed ResponseEvent.
      *
-     * Based on the "completed" flag of the response event:
-     * If the token supply response is "completed" (true) then a completed response event will be published for the customer account,
-     * otherwise it will publish a "not completed" (false) response event with propagated error message from the token supply.
+     * Based on the "completed" flag of the ResponseEvent:
+     * If the token supply response is "completed" (true) then a completed ResponseEvent will be published for the customer account,
+     * otherwise it will publish a "not completed" (false) ResponseEvent with propagated error message from the token supply.
      *
      * @param event
      */
